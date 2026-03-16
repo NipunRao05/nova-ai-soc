@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>NovaSOC Dashboard</title>
+
+<style>
+
+body{
+    font-family: Arial;
+    background:#0f172a;
+    color:white;
+}
+
+.container{
+    width:900px;
+    margin:auto;
+    padding:20px;
+}
+
+.alert{
+    background:#dc2626;
+    padding:15px;
+    font-size:20px;
+    margin-bottom:15px;
+}
+
+.panel{
+    background:#1e293b;
+    padding:15px;
+    margin-bottom:12px;
+    border-radius:6px;
+}
+
+h2{
+    margin-top:0;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>NovaSOC Autonomous Investigation</h1>
+
+<div id="summary" class="alert"></div>
+
+<div class="panel">
+<h2>Detected IPs</h2>
+<div id="ips"></div>
+</div>
+
+<div class="panel">
+<h2>Threat Intelligence</h2>
+<div id="intel"></div>
+</div>
+
+<div class="panel">
+<h2>AI Investigation Result</h2>
+<div id="ai"></div>
+</div>
+
+<div class="panel">
+<h2>Investigation Steps</h2>
+<ul id="steps"></ul>
+</div>
+
+</div>
+
+<script>
+
+async function runInvestigation(){
+
+    const response = await fetch("/autonomous-investigate/test1.log");
+    const data = await response.json();
+
+    const result = data.result;
+
+    // SUMMARY
+    document.getElementById("summary").innerText = result.summary;
+
+    // DETECTED IPS
+    const ips = result.investigation_steps[0].result.ips;
+    document.getElementById("ips").innerText = ips.join(", ");
+
+    // THREAT INTELLIGENCE
+    const intel = result.investigation_steps[1].result;
+    document.getElementById("intel").innerText = JSON.stringify(intel, null, 2);
+
+    // AI RESULT
+    document.getElementById("ai").innerText = result.final_assessment;
+
+    // INVESTIGATION STEPS
+    const steps = document.getElementById("steps");
+    steps.innerHTML = "";
+
+    result.investigation_steps.forEach(step => {
+
+        const li = document.createElement("li");
+        li.innerText = step.agent + " — " + step.action;
+
+        steps.appendChild(li);
+
+    });
+
+}
+
+runInvestigation();
+
+</script>
+
+</body>
+</html>

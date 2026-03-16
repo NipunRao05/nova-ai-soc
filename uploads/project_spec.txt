@@ -1,0 +1,168 @@
+<project_spec>
+You are building Docksmith - a simplified Docker-like build and runtime system from scratch. Focus on three core concepts: build caching/content-addressing, OS-level process isolation, and image layer assembly.
+
+CRITICAL CONSTRAINTS:
+- Single CLI binary (no daemon)
+- All state in ~/.docksmith/ (images/, layers/, cache/)
+- NO NETWORK during build/run (pre-download base images)
+- SAME isolation primitive for RUN (build) AND docksmith run
+- Linux only (use VM if needed)
+- No Docker/runc/containerd - implement isolation directly
+- Fully offline after initial base image import
+
+## ARCHITECTURE
+
+**State Directory:**
+~/.docksmith/
+├── images/ # JSON manifests per image
+├── layers/ # content-addressed tar files (sha256:digest)
+└── cache/ # index mapping cache keys → layer digests
+
+text
+
+## REQUIRED INSTRUCTIONS (Docksmithfile)
+
+1. **FROM <image:tag>** - Load base image layers
+2. **COPY <src> <dest>** - Copy files (supports */** globs), creates dirs
+3. **RUN <command>** - Execute shell in assembled FS → new layer  
+4. **WORKDIR <path>** - Set working dir (lazy dir creation)
+5. **ENV KEY=VALUE** - Image config + injected into RUN
+6. **CMD ["exec","arg"]** - JSON array only, default container command
+
+**Unrecognized instructions → immediate fail with line#**
+
+## IMAGE FORMAT (JSON manifest)
+
+```json
+{
+  "name": "myapp",
+  "tag": "latest", 
+  "digest": "sha256:<hash>",
+  "created": "2026-01-01T00:00:00Z",
+  "config": {
+    "Env": ["KEY=value"],
+    "Cmd": ["python", "main.py"],
+    "WorkingDir": "/app"
+  },
+  "layers": [
+    {"digest": "sha256:aaa...", "size": 2048, "createdBy": "<alpine layer 1>"},
+    {"digest": "sha256:bbb...", "size": 4096, "createdBy": "COPY . /app"}
+  ]
+}
+Manifest digest: JSON with empty digest → sha256 → insert real digest.
+
+BUILD CACHING (CRITICAL - MUST BE CORRECT)
+Cache Key (before COPY/RUN):
+
+text
+sha256(
+  previous_layer_digest_or_base_manifest +
+  instruction_text +
+  current_WORKDIR_or_empty +
+  sorted_ENV_keyvals +
+  COPY_ONLY: sorted_path_sha256s
+)
+Cache Rules:
+
+HIT: Reuse layer, print [CACHE HIT]
+
+MISS: Execute→store layer, print [CACHE MISS]
+
+Cascade: Any miss → all subsequent steps miss
+
+--no-cache: Skip all lookups/writes
+
+Invalidation:
+
+COPY src change → that step + below
+
+FROM change → all layers (via base digest)
+
+ENV/WORKDIR change → that step + below
+
+Missing layer → cascade miss
+
+CONTAINER RUNTIME
+Extract layers in order → temp dir
+
+Isolate process into temp dir root
+
+Apply image ENV + WorkingDir + CMD
+
+Block until exit, print exit code, cleanup
+
+Runtime flags:
+
+docksmith run <image> [override_cmd]
+
+-e KEY=VALUE (overrides image ENV)
+
+CLI COMMANDS
+text
+docksmith build -t name:tag [context] [--no-cache]
+docksmith images                 # Name Tag ID(12) Created  
+docksmith rmi name:tag           # Delete manifest + OWNED layers
+docksmith run name:tag [cmd] -e K=V
+REPRODUCIBILITY REQUIREMENTS
+Tar entries: SORTED paths, ZERO timestamps
+
+Cache hits → preserve original manifest created timestamp
+
+Identical inputs → identical layer digests/manifest
+
+IMPLEMENTATION TASKS
+Phase 1: Core structures
+
+text
+1. State dir setup + JSON manifest serialization
+2. Layer storage (content-addressed tar files) 
+3. Base image import (pre-download alpine:3.18 or similar)
+4. Docksmithfile parser (line-by-line, error on unknown)
+Phase 2: Build engine
+
+text
+5. Layer assembly (extract base → overlay deltas)
+6. Cache key computation (exact spec above)
+7. COPY instruction (globs → sorted tar)
+8. RUN instruction (isolation → capture FS delta)
+Phase 3: Runtime
+
+text
+9. Process isolation (Linux primitives - unshare/chroot/ns?)
+10. Full container runtime (extract→isolate→exec→wait→cleanup)
+Phase 4: CLI + cache
+
+text
+11. Full CLI implementation
+12. Cache hit/miss logic + reporting
+13. rmi (delete manifest + layers - NO refcounting)
+SAMPLE APP REQUIREMENTS
+Create sample with ALL 6 instructions:
+
+text
+FROM alpine:3.18
+WORKDIR /app
+ENV APP_NAME=Docksmith
+COPY . /app  
+RUN echo "Hello $APP_NAME" > /app/output.txt
+CMD ["cat", "/app/output.txt"]
+Demo sequence:
+
+Cold build → all [CACHE MISS]
+
+Warm build → all [CACHE HIT]
+
+Edit file → partial cache + cascade
+
+run → visible output
+
+run -e → env override
+
+Write file in container → verify host isolation
+
+rmi → deletes layers
+
+ISOLATION VERIFICATION (PASS/FAIL)
+Files written in container MUST NOT appear on host FS. Same isolation for build RUN + runtime.
+
+START IMPLEMENTING NOW. Begin with directory structure + manifest serialization. Use python. Output complete, working code.
