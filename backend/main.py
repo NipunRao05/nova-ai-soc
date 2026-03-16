@@ -16,10 +16,4 @@ app.include_router(investigate_router)
 app.include_router(timeline_router)
 app.include_router(autonomous_router)
 
-@app.get("/")
-def home():
-    return FileResponse("frontend/dashboard.html")
 
-@app.get("/status")
-def status():
-    return {"message": "NovaSOC API Running"}
