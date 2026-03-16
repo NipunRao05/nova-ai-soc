@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 
-<title>NovaSOC Dashboard</title>
+<title>NovaSOC Investigation</title>
 
 <style>
 
@@ -10,30 +11,51 @@ body{
     font-family: Arial;
     background:#0f172a;
     color:white;
+    text-align:center;
 }
 
-.container{
-    width:900px;
-    margin:auto;
+button{
+    padding:10px 20px;
+    margin-top:10px;
+    cursor:pointer;
+}
+
+.modal{
+    display:none;
+    position:fixed;
+    z-index:1;
+    left:0;
+    top:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.7);
+}
+
+.modal-content{
+    background:#1e293b;
+    margin:5% auto;
     padding:20px;
+    width:700px;
+    border-radius:8px;
+}
+
+.panel{
+    background:#0f172a;
+    padding:10px;
+    margin-top:10px;
+    border-radius:6px;
 }
 
 .alert{
     background:#dc2626;
-    padding:15px;
-    font-size:20px;
-    margin-bottom:15px;
+    padding:10px;
+    font-size:18px;
 }
 
-.panel{
-    background:#1e293b;
-    padding:15px;
-    margin-bottom:12px;
-    border-radius:6px;
-}
-
-h2{
-    margin-top:0;
+.close{
+    float:right;
+    font-size:22px;
+    cursor:pointer;
 }
 
 </style>
@@ -42,73 +64,110 @@ h2{
 
 <body>
 
-<div class="container">
-
 <h1>NovaSOC Autonomous Investigation</h1>
+
+<input type="file" id="fileInput">
+<br><br>
+
+<button onclick="runInvestigation()">Run Investigation</button>
+
+<div id="dashboardModal" class="modal">
+
+<div class="modal-content">
+
+<span class="close" onclick="closeModal()">✖</span>
+
+<h2>Investigation Dashboard</h2>
 
 <div id="summary" class="alert"></div>
 
 <div class="panel">
-<h2>Detected IPs</h2>
+<h3>Detected IPs</h3>
 <div id="ips"></div>
 </div>
 
 <div class="panel">
-<h2>Threat Intelligence</h2>
-<div id="intel"></div>
+<h3>Threat Intelligence</h3>
+<pre id="intel"></pre>
 </div>
 
 <div class="panel">
-<h2>AI Investigation Result</h2>
+<h3>AI Investigation Result</h3>
 <div id="ai"></div>
 </div>
 
 <div class="panel">
-<h2>Investigation Steps</h2>
+<h3>Investigation Steps</h3>
 <ul id="steps"></ul>
+</div>
+
 </div>
 
 </div>
 
 <script>
 
+function closeModal(){
+    document.getElementById("dashboardModal").style.display="none";
+}
+
 async function runInvestigation(){
 
-    const response = await fetch("/autonomous-investigate/test1.log");
+    const fileInput = document.getElementById("fileInput");
+    const file = fileInput.files[0];
+
+    if(!file){
+        alert("Select a JSON file");
+        return;
+    }
+
+    if(!file.name.endsWith(".json")){
+        alert("Only JSON files allowed");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const uploadResponse = await fetch("/upload",{
+        method:"POST",
+        body:formData
+    });
+
+    const uploadData = await uploadResponse.json();
+
+    const filename = uploadData.filename;
+
+    const response = await fetch(`/autonomous-investigate/${filename}`);
     const data = await response.json();
 
     const result = data.result;
 
-    // SUMMARY
     document.getElementById("summary").innerText = result.summary;
 
-    // DETECTED IPS
     const ips = result.investigation_steps[0].result.ips;
     document.getElementById("ips").innerText = ips.join(", ");
 
-    // THREAT INTELLIGENCE
     const intel = result.investigation_steps[1].result;
-    document.getElementById("intel").innerText = JSON.stringify(intel, null, 2);
+    document.getElementById("intel").innerText = JSON.stringify(intel,null,2);
 
-    // AI RESULT
     document.getElementById("ai").innerText = result.final_assessment;
 
-    // INVESTIGATION STEPS
     const steps = document.getElementById("steps");
-    steps.innerHTML = "";
+    steps.innerHTML="";
 
-    result.investigation_steps.forEach(step => {
+    result.investigation_steps.forEach(step =>{
 
-        const li = document.createElement("li");
-        li.innerText = step.agent + " — " + step.action;
+        const li=document.createElement("li");
+        li.innerText="✔ "+step.agent+" — "+step.action;
 
         steps.appendChild(li);
 
     });
 
-}
+    document.getElementById("dashboardModal").style.display="block";
 
-runInvestigation();
+}
 
 </script>
 

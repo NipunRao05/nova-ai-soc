@@ -18,8 +18,8 @@ app.include_router(autonomous_router)
 
 @app.get("/")
 def home():
-    return {"message": "NovaSOC API Running"}
-
-@app.get("/dashboard")
-def dashboard():
     return FileResponse("frontend/dashboard.html")
+
+@app.get("/status")
+def status():
+    return {"message": "NovaSOC API Running"}
